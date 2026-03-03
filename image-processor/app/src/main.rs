@@ -2,49 +2,20 @@
 
 use alloy_sol_types::private::FixedBytes;
 use alloy_sol_types::SolValue;
-use c2pa_app_lib::{verify_signature, C2PAMetadata, PublicValuesStruct};
+use c2pa_app_lib::{
+    apply_operations_and_hash, verify_signature, C2PAMetadata, ImageData, PublicValuesStruct,
+};
 use pico_sdk::io::{commit_bytes, read_as, read_vec};
 
 pico_sdk::entrypoint!(main);
-
-/// Compute commitment: H = SHA256(original_hash || operations)
-/// This proves the final image was derived from the original using these operations
-fn compute_image_commitment(
-    original_image_hash: &[u8; 32],
-    operations: &[(u8, Vec<u8>)],
-) -> [u8; 32] {
-    let mut state = *original_image_hash;
-
-    // Process each operation
-    for (op_type, params) in operations {
-        // Mix in operation type
-        state[0] = state[0].wrapping_add(*op_type);
-
-        // Mix in operation parameters
-        for (i, &param) in params.iter().enumerate() {
-            if i < 31 {
-                state[i + 1] = state[i + 1].wrapping_add(param);
-            }
-        }
-
-        // Add mixing for order-dependence
-        let rot = (state[0] as usize) % 32;
-        let mut new_state = [0u8; 32];
-        for i in 0..32 {
-            new_state[i] = state[(i + rot) % 32];
-        }
-        state = new_state;
-    }
-
-    state
-}
 
 pub fn main() {
     // =========================================================================
     // Private Inputs:
     // 1. C2PA metadata (original image with valid signature)
-    // 2. List of operations (type + params)
-    // 3. Final image hash (from prover)
+    // 2. Original image dimensions and pixel data
+    // 3. List of operations (type + params)
+    // 4. Final image hash (from prover) - for comparison
     // =========================================================================
 
     // Read has_manifest flag
@@ -105,7 +76,25 @@ pub fn main() {
         return;
     }
 
-    // Read number of operations
+    // =========================================================================
+    // Read original image data
+    // =========================================================================
+    let img_width: u32 = read_as();
+    let img_height: u32 = read_as();
+    let pixel_data = read_vec();
+
+    println!("Received image: {}x{} ({} pixels)", img_width, img_height, pixel_data.len());
+
+    // Create image data structure
+    let image_data = ImageData {
+        width: img_width,
+        height: img_height,
+        pixels: pixel_data,
+    };
+
+    // =========================================================================
+    // Read and apply operations
+    // =========================================================================
     let num_operations: u32 = read_as();
 
     // Read operations
@@ -116,19 +105,30 @@ pub fn main() {
         operations.push((op_type, params_vec));
     }
 
-    // Read final image hash from prover
-    let final_hash_vec = read_vec();
-    let mut final_image_hash = [0u8; 32];
-    final_image_hash.copy_from_slice(&final_hash_vec[..32.min(final_hash_vec.len())]);
+    println!("Applying {} operations in zkVM...", num_operations);
 
-    // Compute commitment in zkVM
-    // This proves: original_image_hash + operations -> final_image_hash
-    let computed_hash = compute_image_commitment(&original_image_hash, &operations);
+    // Apply operations and compute hash
+    let computed_hash = apply_operations_and_hash(
+        &image_data,
+        &operations.iter().map(|(t, p)| (*t, p.as_slice())).collect::<Vec<_>>(),
+    );
+
+    // Read final image hash from prover (for comparison, optional)
+    let _final_hash_vec = read_vec();
+    let _prover_hash: [u8; 32] = if _final_hash_vec.len() >= 32 {
+        let mut h = [0u8; 32];
+        h.copy_from_slice(&_final_hash_vec[..32]);
+        h
+    } else {
+        [0u8; 32]
+    };
 
     // =========================================================================
     // Public Outputs
-    // The final hash proves the relationship between original and final
+    // The final hash is computed from actual image operations in zkVM
     // =========================================================================
+
+    println!("Computed final image hash: {:02x?}", &computed_hash[..8]);
 
     let result_struct = PublicValuesStruct {
         final_image_hash: FixedBytes(computed_hash),

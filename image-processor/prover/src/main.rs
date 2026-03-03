@@ -1,5 +1,6 @@
 use alloy_sol_types::SolType;
 use c2pa_lib::{extract_c2pa_from_jpeg, load_elf, verify_c2pa_claim, PublicValuesStruct};
+use image::GenericImageView;
 use image_editor::{CropRegion, ResizeOptions};
 use pico_sdk::{client::DefaultProverClient, init_logger};
 use sha2::{Digest, Sha256};
@@ -386,6 +387,17 @@ fn main() {
         let claim_valid = verify_c2pa_claim(&m);
         println!("C2PA claim verification (including cert chain): {}", claim_valid);
 
+        // Load original image and extract pixel data
+        println!("Loading original image for zkVM...");
+        let original_img = image::open(&image_path).expect("Failed to open original image");
+        let (img_width, img_height) = original_img.dimensions();
+        println!("Original image: {}x{}", img_width, img_height);
+
+        // Convert to RGBA
+        let rgba_img = original_img.to_rgba8();
+        let pixel_data = rgba_img.into_raw();
+        println!("Pixel data: {} bytes", pixel_data.len());
+
         // Initialize prover
         let client = DefaultProverClient::new(&elf);
         let mut stdin = client.new_stdin_builder();
@@ -408,6 +420,13 @@ fn main() {
 
         // Write claim hash (32 bytes) - this is the original image hash from C2PA
         stdin.write_slice(&m.claim_hash);
+
+        // Write original image dimensions
+        stdin.write(&img_width);
+        stdin.write(&img_height);
+
+        // Write original image pixel data
+        stdin.write_slice(&pixel_data);
 
         // Write number of operations
         let num_ops = operations.len() as u32;
@@ -440,14 +459,36 @@ fn main() {
     } else {
         println!("No C2PA manifest - generating proof for INVALID case");
 
+        // Load original image for invalid case too (needed for zkVM)
+        let original_img = image::open(&image_path).expect("Failed to open original image");
+        let (img_width, img_height) = original_img.dimensions();
+        let rgba_img = original_img.to_rgba8();
+        let pixel_data = rgba_img.into_raw();
+
         let client = DefaultProverClient::new(&elf);
         let mut stdin = client.new_stdin_builder();
 
         // Write has_manifest = 0 (false)
         stdin.write(&(0u8));
 
-        // Write empty claim hash for invalid case
+        // Write issuer (zeros)
         stdin.write_slice(&[0u8; 32]);
+
+        // Write timestamp (0)
+        stdin.write(&(0u64));
+
+        // Write signature (zeros)
+        stdin.write_slice(&[0u8; 64]);
+
+        // Write claim hash (zeros)
+        stdin.write_slice(&[0u8; 32]);
+
+        // Write original image dimensions
+        stdin.write(&img_width);
+        stdin.write(&img_height);
+
+        // Write original image pixel data
+        stdin.write_slice(&pixel_data);
 
         // Write number of operations (0 for invalid case)
         stdin.write(&(0u32));

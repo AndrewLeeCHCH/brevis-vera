@@ -85,30 +85,30 @@ warning: function `extract_claim_hash_from_claim` is never used
 
 warning: `c2pa-lib` (lib) generated 13 warnings
 warning: unused variable: `original_image_hash`
-   --> image-processor/prover/src/main.rs:359:9
+   --> image-processor/prover/src/main.rs:360:9
     |
-359 |     let original_image_hash = if has_manifest {
+360 |     let original_image_hash = if has_manifest {
     |         ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_original_image_hash`
     |
     = note: `#[warn(unused_variables)]` on by default
 
 warning: function `compute_semantic_hash` is never used
-   --> image-processor/prover/src/main.rs:169:4
+   --> image-processor/prover/src/main.rs:170:4
     |
-169 | fn compute_semantic_hash(original_hash: &[u8; 32], operations: &[Operation]) -> [u8; 32] {
+170 | fn compute_semantic_hash(original_hash: &[u8; 32], operations: &[Operation]) -> [u8; 32] {
     |    ^^^^^^^^^^^^^^^^^^^^^
     |
     = note: `#[warn(dead_code)]` on by default
 
 warning: `c2pa-prover` (bin "c2pa-prover") generated 2 warnings
-    Finished `release` profile [optimized] target(s) in 0.21s
+    Finished `release` profile [optimized] target(s) in 0.26s
      Running `target/release/c2pa-prover /Users/jinyaoli/Development/brevis-network/brevis-vera/image-processor/../DSC00050.JPG --op crop,100,100,800,600 --op resize,400,300 -o /Users/jinyaoli/Development/brevis-network/brevis-vera/image-processor/test_output.jpg`
 Input image: /Users/jinyaoli/Development/brevis-network/brevis-vera/image-processor/../DSC00050.JPG
 Output image: /Users/jinyaoli/Development/brevis-network/brevis-vera/image-processor/test_output.jpg
 Number of operations: 2
   Operation 1: Crop { x: 100, y: 100, width: 800, height: 600 }
   Operation 2: Resize { width: 400, height: 300 }
-ELF length: 146752
+ELF length: 185972
 
 [1/3] Extracting C2PA data from original image...
 Manifest JSON: {
@@ -152,12 +152,7 @@ Could not parse as X.509, trying raw key bytes
 Certificate chain verification: PASSED
 Accepting pre-verified signature from c2pa crate
 C2PA claim verification (including cert chain): true
+Loading original image for zkVM...
+Original image: 8640x5760
+Pixel data: 199065600 bytes
 Final image hash (file): [7c, 02, b9, 36, 15, 20, 2f, 32]
-[DEBUG] postprocess: accessed_addrs len: 15997
-
-=== Proof Generated! ===
-Final image hash: [ce, d3, e9, 48, 3d, 15, 2c, c9]
-Number of operations: 2
-
-=== C2PA Image Edit ZK Proof Generated! ===
-Output saved to: /Users/jinyaoli/Development/brevis-network/brevis-vera/image-processor/test_output.jpg

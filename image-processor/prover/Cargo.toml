@@ -15,3 +15,4 @@ alloy-sol-types = "0.8.0"
 c2pa-lib = { path = "../lib" }
 image-editor = { path = "../../image-editor" }
 sha2 = "0.10"
+image = "0.25"
