@@ -101,7 +101,7 @@ warning: function `compute_semantic_hash` is never used
     = note: `#[warn(dead_code)]` on by default
 
 warning: `c2pa-prover` (bin "c2pa-prover") generated 2 warnings
-    Finished `release` profile [optimized] target(s) in 0.26s
+    Finished `release` profile [optimized] target(s) in 0.23s
      Running `target/release/c2pa-prover /Users/jinyaoli/Development/brevis-network/brevis-vera/image-processor/../DSC00050.JPG --op crop,100,100,800,600 --op resize,400,300 -o /Users/jinyaoli/Development/brevis-network/brevis-vera/image-processor/test_output.jpg`
 Input image: /Users/jinyaoli/Development/brevis-network/brevis-vera/image-processor/../DSC00050.JPG
 Output image: /Users/jinyaoli/Development/brevis-network/brevis-vera/image-processor/test_output.jpg
@@ -154,5 +154,6 @@ Accepting pre-verified signature from c2pa crate
 C2PA claim verification (including cert chain): true
 Loading original image for zkVM...
 Original image: 8640x5760
-Pixel data: 199065600 bytes
+Downscaling to 200x133 for zkVM
+ZKVM pixel data: 106400 bytes (200x133)
 Final image hash (file): [7c, 02, b9, 36, 15, 20, 2f, 32]

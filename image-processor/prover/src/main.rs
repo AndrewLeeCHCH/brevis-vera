@@ -393,10 +393,28 @@ fn main() {
         let (img_width, img_height) = original_img.dimensions();
         println!("Original image: {}x{}", img_width, img_height);
 
-        // Convert to RGBA
-        let rgba_img = original_img.to_rgba8();
+        // Downscale image for zkVM (zkVM has limited memory)
+        // The zkVM processes a smaller version to verify operations
+        const MAX_ZKVM_SIZE: u32 = 200;
+        let (zkvm_width, zkvm_height) = if img_width > MAX_ZKVM_SIZE || img_height > MAX_ZKVM_SIZE {
+            let ratio = (MAX_ZKVM_SIZE as f32 / img_width as f32).min(MAX_ZKVM_SIZE as f32 / img_height as f32);
+            let new_width = (img_width as f32 * ratio) as u32;
+            let new_height = (img_height as f32 * ratio) as u32;
+            println!("Downscaling to {}x{} for zkVM", new_width, new_height);
+            (new_width, new_height)
+        } else {
+            (img_width, img_height)
+        };
+
+        // Resize for zkVM
+        let zkvm_img = original_img.resize_exact(
+            zkvm_width,
+            zkvm_height,
+            image::imageops::FilterType::Triangle,
+        );
+        let rgba_img = zkvm_img.to_rgba8();
         let pixel_data = rgba_img.into_raw();
-        println!("Pixel data: {} bytes", pixel_data.len());
+        println!("ZKVM pixel data: {} bytes ({}x{})", pixel_data.len(), zkvm_width, zkvm_height);
 
         // Initialize prover
         let client = DefaultProverClient::new(&elf);
@@ -421,11 +439,11 @@ fn main() {
         // Write claim hash (32 bytes) - this is the original image hash from C2PA
         stdin.write_slice(&m.claim_hash);
 
-        // Write original image dimensions
-        stdin.write(&img_width);
-        stdin.write(&img_height);
+        // Write zkvm image dimensions
+        stdin.write(&zkvm_width);
+        stdin.write(&zkvm_height);
 
-        // Write original image pixel data
+        // Write zkvm image pixel data
         stdin.write_slice(&pixel_data);
 
         // Write number of operations
@@ -462,7 +480,24 @@ fn main() {
         // Load original image for invalid case too (needed for zkVM)
         let original_img = image::open(&image_path).expect("Failed to open original image");
         let (img_width, img_height) = original_img.dimensions();
-        let rgba_img = original_img.to_rgba8();
+
+        // Downscale image for zkVM (same as valid case)
+        const MAX_ZKVM_SIZE: u32 = 200;
+        let (zkvm_width, zkvm_height) = if img_width > MAX_ZKVM_SIZE || img_height > MAX_ZKVM_SIZE {
+            let ratio = (MAX_ZKVM_SIZE as f32 / img_width as f32).min(MAX_ZKVM_SIZE as f32 / img_height as f32);
+            let new_width = (img_width as f32 * ratio) as u32;
+            let new_height = (img_height as f32 * ratio) as u32;
+            (new_width, new_height)
+        } else {
+            (img_width, img_height)
+        };
+
+        let zkvm_img = original_img.resize_exact(
+            zkvm_width,
+            zkvm_height,
+            image::imageops::FilterType::Triangle,
+        );
+        let rgba_img = zkvm_img.to_rgba8();
         let pixel_data = rgba_img.into_raw();
 
         let client = DefaultProverClient::new(&elf);
@@ -483,11 +518,11 @@ fn main() {
         // Write claim hash (zeros)
         stdin.write_slice(&[0u8; 32]);
 
-        // Write original image dimensions
-        stdin.write(&img_width);
-        stdin.write(&img_height);
+        // Write zkvm image dimensions
+        stdin.write(&zkvm_width);
+        stdin.write(&zkvm_height);
 
-        // Write original image pixel data
+        // Write zkvm image pixel data
         stdin.write_slice(&pixel_data);
 
         // Write number of operations (0 for invalid case)
