@@ -342,6 +342,40 @@
             cursor: pointer;
             text-decoration: underline;
         }
+
+        /* Submit result */
+        .submit-result {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .submit-result.success {
+            display: block;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .submit-result.error {
+            display: block;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .submit-result.loading {
+            display: block;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+
+        #submitBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -396,10 +430,12 @@
 
         <!-- Output Section -->
         <div class="section">
-            <h2>3. Generate JSON</h2>
+            <h2>3. Generate JSON & Submit</h2>
             <button class="btn btn-success" onclick="generateJSON()">Generate JSON</button>
             <button class="btn btn-secondary copy-btn" onclick="copyJSON()">Copy to Clipboard</button>
-            <textarea id="jsonOutput" readonly placeholder="JSON output will appear here..."></textarea>
+            <button class="btn btn-warning" id="submitBtn" onclick="submitToBackend()">Submit to Backend</button>
+            <textarea id="jsonOutput" placeholder="Edit JSON here or generate new..."></textarea>
+            <div id="submitResult" class="submit-result"></div>
         </div>
     </div>
 
@@ -421,6 +457,7 @@
         let operations = [];
         let currentOperationType = null;
         let previewUrl = null;
+        let cachedPreviewResult = null;
 
         // Operation field configurations
         const operationFields = {
@@ -523,6 +560,7 @@
             }
 
             selectedFile = file;
+            cachedPreviewResult = null; // Clear cached preview when new image loaded
 
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -551,7 +589,7 @@
         }
 
         // Preview rendering
-        function updatePreview() {
+        async function updatePreview() {
             if (!originalImage) return;
 
             const canvas = document.getElementById('previewCanvas');
@@ -562,156 +600,50 @@
             document.getElementById('previewInfo').textContent = 'Processing...';
             document.getElementById('downloadLink').style.display = 'none';
 
-            // Use setTimeout to allow UI to update
-            setTimeout(() => {
-                try {
-                    // Start with original image dimensions
-                    let width = originalImage.naturalWidth;
-                    let height = originalImage.naturalHeight;
+            try {
+                // Start with original image dimensions
+                let width = originalImage.naturalWidth;
+                let height = originalImage.naturalHeight;
 
-                    if (operations.length === 0) {
-                        // No operations - show original
-                        canvas.width = width;
-                        canvas.height = height;
-                        ctx.drawImage(originalImage, 0, 0, width, height);
-                        document.getElementById('previewInfo').textContent =
-                            `Original: ${width} x ${height}`;
-                    } else {
-                        // Create working canvas with original dimensions
-                        let workCanvas = document.createElement('canvas');
-                        let workCtx = workCanvas.getContext('2d');
-                        workCanvas.width = width;
-                        workCanvas.height = height;
-                        workCtx.drawImage(originalImage, 0, 0, width, height);
+                if (operations.length === 0) {
+                    // No operations - show original
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(originalImage, 0, 0, width, height);
+                    document.getElementById('previewInfo').textContent =
+                        `Original: ${width} x ${height}`;
+                    cachedPreviewResult = null;
+                    document.getElementById('jsonOutput').value = '';
+                } else {
+                    // Call backend to get preview
+                    const result = await getBackendPreview();
 
-                        // Process each operation sequentially
-                        for (const op of operations) {
-                            const params = op.paramsObject;
-                            let newWidth = width;
-                            let newHeight = height;
-
-                            // Get current image data before operation
-                            const imageData = workCtx.getImageData(0, 0, width, height);
-
-                            switch (op.type) {
-                                case 'crop':
-                                    // Create new canvas with crop dimensions
-                                    newWidth = Math.min(params.width, width - params.x);
-                                    newHeight = Math.min(params.height, height - params.y);
-                                    workCanvas = document.createElement('canvas');
-                                    workCtx = workCanvas.getContext('2d');
-                                    workCanvas.width = newWidth;
-                                    workCanvas.height = newHeight;
-                                    // Draw cropped region
-                                    workCtx.putImageData(imageData,
-                                        -params.x, -params.y,
-                                        0, 0, width, height);
-                                    break;
-
-                                case 'resize':
-                                    newWidth = params.width;
-                                    newHeight = params.height;
-                                    // Create new canvas and scale
-                                    workCanvas = document.createElement('canvas');
-                                    workCtx = workCanvas.getContext('2d');
-                                    workCanvas.width = newWidth;
-                                    workCanvas.height = newHeight;
-                                    workCtx.drawImage(workCanvas, 0, 0, width, height, 0, 0, newWidth, newHeight);
-                                    // Re-draw original to temp, then scale
-                                    const tempCanvas = document.createElement('canvas');
-                                    tempCanvas.width = width;
-                                    tempCanvas.height = height;
-                                    tempCanvas.getContext('2d').putImageData(imageData, 0, 0);
-                                    workCtx.clearRect(0, 0, newWidth, newHeight);
-                                    workCtx.drawImage(tempCanvas, 0, 0, newWidth, newHeight);
-                                    break;
-
-                                case 'resize_aspect':
-                                    const aspect = Math.min(params.max_width / width, params.max_height / height);
-                                    newWidth = Math.round(width * aspect);
-                                    newHeight = Math.round(height * aspect);
-                                    workCanvas = document.createElement('canvas');
-                                    workCtx = workCanvas.getContext('2d');
-                                    workCanvas.width = newWidth;
-                                    workCanvas.height = newHeight;
-                                    const tempCanvas2 = document.createElement('canvas');
-                                    tempCanvas2.width = width;
-                                    tempCanvas2.height = height;
-                                    tempCanvas2.getContext('2d').putImageData(imageData, 0, 0);
-                                    workCtx.drawImage(tempCanvas2, 0, 0, newWidth, newHeight);
-                                    break;
-
-                                case 'brightness':
-                                    applyBrightness(workCtx, width, height, params.value);
-                                    break;
-
-                                case 'contrast':
-                                    applyContrast(workCtx, width, height, params.value);
-                                    break;
-
-                                case 'exposure':
-                                    applyExposure(workCtx, width, height, params.value);
-                                    break;
-
-                                case 'gamma':
-                                    applyGamma(workCtx, width, height, params.value);
-                                    break;
-
-                                case 'thumbnail':
-                                    const thumbSize = params.max_size;
-                                    const thumbAspect = width / height;
-                                    if (thumbAspect > 1) {
-                                        newWidth = thumbSize;
-                                        newHeight = Math.round(thumbSize / thumbAspect);
-                                    } else {
-                                        newHeight = thumbSize;
-                                        newWidth = Math.round(thumbSize * thumbAspect);
-                                    }
-                                    workCanvas = document.createElement('canvas');
-                                    workCtx = workCanvas.getContext('2d');
-                                    workCanvas.width = newWidth;
-                                    workCanvas.height = newHeight;
-                                    const tempCanvas3 = document.createElement('canvas');
-                                    tempCanvas3.width = width;
-                                    tempCanvas3.height = height;
-                                    tempCanvas3.getContext('2d').putImageData(imageData, 0, 0);
-                                    workCtx.drawImage(tempCanvas3, 0, 0, newWidth, newHeight);
-                                    break;
-
-                                case 'crop_resize':
-                                    // First crop
-                                    const cropW = Math.min(params.width, width - params.x);
-                                    const cropH = Math.min(params.height, height - params.y);
-                                    const cropCanvas = document.createElement('canvas');
-                                    cropCanvas.width = cropW;
-                                    cropCanvas.height = cropH;
-                                    cropCanvas.getContext('2d').putImageData(imageData,
-                                        -params.x, -params.y, 0, 0, width, height);
-                                    // Then resize
-                                    newWidth = params.target_width;
-                                    newHeight = params.target_height;
-                                    workCanvas = document.createElement('canvas');
-                                    workCtx = workCanvas.getContext('2d');
-                                    workCanvas.width = newWidth;
-                                    workCanvas.height = newHeight;
-                                    workCtx.drawImage(cropCanvas, 0, 0, newWidth, newHeight);
-                                    break;
-                            }
-
-                            // Update dimensions
-                            width = newWidth;
-                            height = newHeight;
-                        }
-
-                        // Set final canvas size and draw result
-                        canvas.width = width;
-                        canvas.height = height;
-                        ctx.drawImage(workCanvas, 0, 0, width, height);
+                    if (!result || !result.success) {
+                        throw new Error(result?.message || 'Failed to get preview from backend');
                     }
+
+                    // Cache the result for generateJSON to use
+                    cachedPreviewResult = result;
+
+                    // Load the base64 image from backend
+                    const img = new Image();
+                    await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = reject;
+                        img.src = 'data:image/jpeg;base64,' + result.image;
+                    });
+
+                    // Set canvas to image dimensions
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    ctx.drawImage(img, 0, 0);
+
+                    width = img.naturalWidth;
+                    height = img.naturalHeight;
 
                     // Update info
                     document.getElementById('previewInfo').textContent =
-                        `${width} x ${height} pixels`;
+                        `${width} x ${height} pixels (from backend)`;
 
                     // Create download link
                     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -721,13 +653,16 @@
                     downloadLink.download = selectedFile.name.replace(/\.[^/.]+$/, '') + '_preview.jpg';
                     downloadLink.style.display = 'inline-block';
 
-                } catch (e) {
-                    console.error('Preview error:', e);
-                    document.getElementById('previewInfo').textContent = 'Error: ' + e.message;
+                    // Auto-generate JSON after receiving backend response
+                    autoGenerateJSON();
                 }
 
-                loading.classList.remove('active');
-            }, 50);
+            } catch (e) {
+                console.error('Preview error:', e);
+                document.getElementById('previewInfo').textContent = 'Error: ' + e.message;
+            }
+
+            loading.classList.remove('active');
         }
 
         // Image processing functions
@@ -832,7 +767,7 @@
                 params[field.name] = field.type === 'number' ? parseFloat(value) : value;
             });
 
-            const paramString = Object.values(params).join(',');
+            const paramString = currentOperationType + ',' + Object.values(params).join(',');
 
             operations.push({
                 type: currentOperationType,
@@ -872,20 +807,85 @@
             `).join('');
         }
 
-        // JSON generation
-        function generateJSON() {
-            if (!selectedFile) {
-                alert('Please select an image first');
-                return;
+        // Compute SHA256 hash of image data
+        async function computeImageHash(imageData) {
+            const hashBuffer = await crypto.subtle.digest('SHA-256', imageData);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        }
+
+        // Get image as ArrayBuffer for hashing
+        function getImageDataFromFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // Get image data from canvas
+        function getImageDataFromCanvas(canvas) {
+            return canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+        }
+
+        // Decode base64 to ArrayBuffer
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        // Get preview from backend
+        async function getBackendPreview() {
+            if (!selectedFile || operations.length === 0) {
+                return null;
             }
 
-            if (operations.length === 0) {
-                alert('Please add at least one operation');
-                return;
-            }
+            const proofJson = {
+                timestamp: new Date().toISOString(),
+                original_image: selectedFile.name,
+                output_image: selectedFile.name.replace(/\.[^/.]+$/, '') + '_edited.jpg',
+                operations: operations.map(op => ({
+                    type: op.type,
+                    params: op.params
+                })),
+                num_operations: operations.length,
+                original_image_hash: "",
+                final_image_hash: ""
+            };
+
+            const formData = new FormData();
+            formData.append('image', selectedFile);
+            formData.append('proof_json', JSON.stringify(proofJson));
+
+            const response = await fetch('http://localhost:3000/api/preview', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            return result;
+        }
+
+        // JSON generation
+        // Auto-generate JSON from cached backend preview
+        async function autoGenerateJSON() {
+            if (!selectedFile || operations.length === 0) return;
+            if (!cachedPreviewResult || !cachedPreviewResult.success) return;
 
             const timestamp = new Date().toISOString();
             const outputImage = selectedFile.name.replace(/\.[^/.]+$/, '') + '_edited.jpg';
+
+            // Compute original image hash
+            const originalImageData = await getImageDataFromFile(selectedFile);
+            const originalImageHash = await computeImageHash(originalImageData);
+
+            const finalImageHash = cachedPreviewResult.image_hash;
 
             const json = {
                 timestamp: timestamp,
@@ -896,10 +896,36 @@
                     params: op.params
                 })),
                 num_operations: operations.length,
-                final_image_hash: ""
+                original_image_hash: originalImageHash,
+                final_image_hash: finalImageHash
             };
 
             document.getElementById('jsonOutput').value = JSON.stringify(json, null, 4);
+        }
+
+        async function generateJSON() {
+            if (!selectedFile) {
+                alert('Please select an image first');
+                return;
+            }
+
+            if (operations.length === 0) {
+                alert('Please add at least one operation');
+                return;
+            }
+
+            // Wait for preview to finish loading
+            const previewInfo = document.getElementById('previewInfo').textContent;
+            if (previewInfo.includes('Processing')) {
+                alert('Please wait for preview to load');
+                return;
+            }
+
+            await autoGenerateJSON();
+
+            if (!document.getElementById('jsonOutput').value) {
+                alert('Please wait for preview to load or refresh the preview');
+            }
         }
 
         function copyJSON() {
@@ -912,6 +938,70 @@
             textarea.select();
             document.execCommand('copy');
             alert('Copied to clipboard!');
+        }
+
+        async function submitToBackend() {
+            const resultDiv = document.getElementById('submitResult');
+            const submitBtn = document.getElementById('submitBtn');
+
+            // Validate inputs
+            if (!selectedFile) {
+                alert('Please select an image first');
+                return;
+            }
+
+            // Validate JSON is provided (either edited or generated)
+            const jsonText = document.getElementById('jsonOutput').value.trim();
+            if (!jsonText) {
+                alert('Please provide proof JSON');
+                return;
+            }
+
+            let proofJson;
+            try {
+                proofJson = JSON.parse(jsonText);
+            } catch (e) {
+                alert('Invalid JSON: ' + e.message);
+                return;
+            }
+
+            // Show loading state
+            resultDiv.className = 'submit-result loading';
+            resultDiv.textContent = 'Submitting to backend...';
+            submitBtn.disabled = true;
+
+            try {
+                // Create FormData
+                const formData = new FormData();
+                formData.append('image', selectedFile);
+                formData.append('proof_json', JSON.stringify(proofJson));
+
+                // Send to backend
+                const response = await fetch('http://localhost:3000/api/proof', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    resultDiv.className = 'submit-result success';
+                    resultDiv.innerHTML = `
+                        <strong>Success!</strong><br>
+                        Proof ID: ${result.proof_id}<br>
+                        Final Image Hash: ${result.final_image_hash}<br>
+                        Number of Operations: ${result.num_operations}
+                    `;
+                } else {
+                    resultDiv.className = 'submit-result error';
+                    resultDiv.textContent = 'Error: ' + result.message;
+                }
+            } catch (error) {
+                resultDiv.className = 'submit-result error';
+                resultDiv.textContent = 'Error: ' + error.message;
+            } finally {
+                submitBtn.disabled = false;
+            }
         }
 
         // Initialize buttons as disabled

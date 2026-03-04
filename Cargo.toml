@@ -1,5 +1,5 @@
 [workspace]
-members = ["image-processor/*", "picture-reader", "image-editor"]
+members = ["image-processor/*", "picture-reader", "image-editor", "image-processor/cli"]
 resolver = "2"
 
 [workspace.package]
