@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Brevis Vera Web</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body data-page="index">
+  <main>
+    <h1>Brevis Vera Web Demo</h1>
+    <p class="lead">Frontend is decoupled from backend API. Use this page to generate proof artifacts.</p>
+
+    <section class="card">
+      <h2>Mock Flow: Sign -> Edit+Prove</h2>
+      <form id="pipelineForm">
+        <div class="grid">
+          <div>
+            <label>Select input image</label>
+            <input id="mock_file" type="file" accept="image/png,image/jpeg,image/jpg" />
+            <p id="mock_status" class="status"></p>
+          </div>
+          <div>
+            <label>Input image path</label>
+            <input type="text" id="input_image" name="input_image" value="samples/input.png" />
+          </div>
+        </div>
+        <img id="mock_preview" class="preview" alt="input preview" />
+        <div class="grid">
+          <div><label>crop_x</label><input type="number" name="crop_x" value="1" /></div>
+          <div><label>crop_y</label><input type="number" name="crop_y" value="1" /></div>
+          <div><label>crop_w</label><input type="number" name="crop_w" value="4" /></div>
+          <div><label>crop_h</label><input type="number" name="crop_h" value="4" /></div>
+          <div><label>brightness_delta</label><input type="number" name="brightness_delta" value="20" /></div>
+          <div><label>rotate_quarters</label><input type="number" name="rotate_quarters" value="0" /></div>
+          <div><label>threshold (optional)</label><input type="text" name="threshold" value="" /></div>
+          <div class="check"><label><input type="checkbox" name="invert" /> invert</label></div>
+        </div>
+        <button type="submit">Generate Artifacts</button>
+      </form>
+      <div id="pipeline_result"></div>
+    </section>
+
+    <section class="card">
+      <h2>Verify Page</h2>
+      <p><a href="/verify-page">Open verify page</a></p>
+    </section>
+
+    <section class="card">
+      <h2>C2PA Validation</h2>
+      <form id="c2paForm">
+        <div class="grid">
+          <div>
+            <label>Select C2PA image</label>
+            <input id="c2pa_file" type="file" accept="image/png,image/jpeg,image/jpg" />
+            <p id="c2pa_status" class="status"></p>
+          </div>
+          <div>
+            <label>C2PA image path</label>
+            <input type="text" id="c2pa_input" name="input_image" value="DSC00050.JPG" />
+          </div>
+        </div>
+        <img id="c2pa_preview" class="preview" alt="c2pa preview" />
+        <button type="submit">Run verify-c2pa</button>
+      </form>
+      <div id="c2pa_result"></div>
+    </section>
+  </main>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

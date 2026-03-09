@@ -1,8 +1,0 @@
-{
-    "timestamp": "2026-03-02T14:10:28Z",
-    "original_image": "DSC00050.JPG",
-    "output_image": "test_output.jpg",
-    "operations": [{"type":"crop","params":"100,100,800,600"},{"type":"resize","params":"400,300"}],
-    "num_operations": 2,
-    "final_image_hash": "ced3e9483d152cc9"
-}

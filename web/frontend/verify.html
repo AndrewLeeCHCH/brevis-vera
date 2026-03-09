@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verify Artifacts</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body data-page="verify">
+  <main>
+    <p><a href="/">Back</a></p>
+    <h1>Verify Edited Image With Proof</h1>
+
+    <section class="card">
+      <form id="verifyForm">
+        <div class="grid">
+          <div><label>Edited image path</label><input type="text" name="edited_image" id="edited_image" /></div>
+          <div><label>Metadata path</label><input type="text" name="metadata" id="metadata" /></div>
+          <div><label>RISC-V proof path</label><input type="text" name="riscv_proof" id="riscv_proof" /></div>
+          <div><label>Public values path</label><input type="text" name="public_values" id="public_values" /></div>
+        </div>
+        <img id="verify_preview" class="preview" alt="edited image preview" />
+        <button type="submit">Verify Now</button>
+      </form>
+      <div id="verify_result"></div>
+    </section>
+  </main>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

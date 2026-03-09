@@ -1,0 +1,12 @@
+[package]
+name = "brevis-vera-lib"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["std"]
+std = []
+
+[dependencies]
+serde = { workspace = true }
+sha2 = { workspace = true }

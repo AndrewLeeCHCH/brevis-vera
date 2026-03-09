@@ -1,0 +1,8 @@
+{
+  "scheme": "ecdsa-p256-sha256-mock-provenance-v1",
+  "image_hash_hex": "2c15295a2754846fb16de187c54f0aca5a63e114ee12c284987b057b7d688ce2",
+  "signer_pubkey_sec1_hex": "04d73916d3d13505be6d250cbb9c410f021e9737272384c2752cbecd6e17f731dc690aa73be9e4162e58c83eb4bd9759283739db8257270146d1f5a71982c6a551",
+  "signature_der_hex": "3046022100e0f5af2f3e9799ee7cb8fe27d6c532895f5d14ac57256d94c0604ec0ef1bfe34022100bf9f1d2a69eac6c19dca7acf7e3ef784717bf64bdad1b15994608207cb1faa17",
+  "issued_at_unix_secs": 1773044538,
+  "provenance_hint": "mock-c2pa-ecdsa-p256"
+}

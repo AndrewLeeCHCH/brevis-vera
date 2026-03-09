@@ -1,0 +1,8 @@
+[package]
+name = "brevis-vera-app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+brevis-vera-lib = { path = "../lib", default-features = false }
+pico-sdk = { workspace = true }

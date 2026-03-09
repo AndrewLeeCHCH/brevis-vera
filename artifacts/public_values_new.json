@@ -1,0 +1,9 @@
+{
+  "original_hash_hex": "1f2e7e955f00d7a7aeb7bf8bec22ceb01cb650b7b88e2513e0e154146594243a",
+  "edited_hash_hex": "d0737abfd3abdacfeb15d559e28c2f0b3662a7aa03ac5b7a58afc422110db75a",
+  "op_mask": 31,
+  "provenance_mode": 0,
+  "provenance_manifest_hash_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+  "provenance_asset_hash_hex": "1f2e7e955f00d7a7aeb7bf8bec22ceb01cb650b7b88e2513e0e154146594243a",
+  "provenance_state": 0
+}
