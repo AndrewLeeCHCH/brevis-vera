@@ -225,6 +225,178 @@ Nightly tier (`artifacts/perf_matrix_nightly.csv`)
 | series_2048x2048 | 4194304 | 332244154 | 22721.92 | 2903969 |
 | series_4096x4096 | 16777216 | 1330226632 | 94277.41 | 12341153 |
 
+## Proving Bottleneck Analysis (2026-03-09)
+
+The current proving bottleneck is dominated by in-circuit hashing and memory trace growth, not by edit arithmetic.
+
+Evidence:
+
+1. `prove_fast` dominates end-to-end runtime (from `artifacts/perf_report_5runs.json`):
+- `prove_fast`: ~23340.81 ms average
+- total: ~23571.21 ms average
+- proving is ~99% of total runtime in this benchmark profile.
+
+2. Emulation cycles scale nearly linearly with source image pixels (from `artifacts/perf_matrix_nightly.csv`):
+- 256x256: 5,518,251 cycles
+- 512x512: 20,964,267 cycles
+- 1024x1024: 82,748,332 cycles
+- 2048x2048: 332,244,154 cycles
+- 4096x4096: 1,330,226,632 cycles
+- observed cycles/pixel remains roughly stable (~79), indicating pixel-count dominated cost.
+
+3. Optional transforms add comparatively small overhead:
+- In local `emulate-cycles` checks on 256x256 input, baseline was 5,518,251 cycles; enabling `invert + threshold + rotate` raised this to 5,622,756 cycles (~1.9%).
+- This indicates crop/brightness/invert/threshold/rotate logic is not the primary cost driver.
+
+Root cause in circuit design:
+
+- Guest computes SHA-256 on full original pixels and full edited pixels in-circuit.
+- Witness carries full `original_pixels`, so proving complexity follows full source image size rather than only cropped region size.
+- As image size grows, hashing and memory accesses dominate proving resources.
+
+## Redesign Proposal (Performance + Security)
+
+Goal: reduce proving resource usage while preserving verification integrity and existing minimal public outputs (`original_hash`, `edited_hash`, `op_mask`).
+
+### Priority 1: Immediate, low-risk changes
+
+1. Add proof profile modes in CLI/API
+- Keep current default behavior for compatibility.
+- Add explicit modes (for example `fast-local` vs `high-assurance`) with clear labels in outputs and docs.
+- Benefit: avoids security over-claim without changing circuit semantics.
+
+2. Enforce operational guardrails on image size
+- Add configurable caps for max input dimensions/pixels in `edit-and-prove*`.
+- Fail fast with explicit error when over cap.
+- Benefit: prevents pathological proving latency/cost spikes and reduces DoS risk.
+
+3. Improve performance telemetry
+- Persist per-run cycles/time/image-size metrics by default (CSV/JSON append mode).
+- Benefit: enables regression tracking and capacity planning.
+
+### Priority 2: Main performance redesign
+
+4. Split proof paths by trust boundary
+- Path A (current semantics): prove on full source pixels for strongest source-to-output statement.
+- Path B (performance mode): prove only edit correctness on a bounded working set (for example pre-cropped ROI), while source provenance remains host/C2PA verified and explicitly marked in provenance state/mode.
+- Benefit: allows large resource reduction for practical deployments while preserving a high-assurance option.
+- Tradeoff: Path B weakens the statement compared with full-source in-circuit linkage and must be policy-gated.
+
+5. Replace in-circuit generic SHA-256 over large buffers with proof-friendly commitment strategy
+- Keep externally visible hashes compatible for verifiers, but redesign internal commitment/check flow to reduce zkVM cost.
+- Example direction: host computes chunk commitments; circuit verifies structured consistency and edited-result commitment rather than re-hashing full source bytes naively.
+- Benefit: targets the dominant bottleneck (full-buffer hashing/memory trace).
+- Tradeoff: requires careful security review and migration tests.
+
+### Priority 3: Longer-term architecture
+
+6. Introduce versioned statement schema
+- Add statement/proof version field and mode field to artifacts.
+- Keep verifier backward-compatible during migration window.
+- Benefit: safe rollout of new proving semantics without silent mismatches.
+
+7. Move to full recursive/on-chain profile when needed
+- Add full `prove` + recursive stage verification path (`convert/combine/compress/embed`) for deployments that require it.
+- Benefit: aligns assurance level with on-chain/integrated verifier expectations.
+- Tradeoff: higher proving cost than `prove_fast`.
+
+### Recommended rollout plan
+
+1. Implement Priority 1 in current branch (low risk, immediate operational value).
+2. Prototype Priority 2 as opt-in mode behind explicit CLI flag and artifact version.
+3. Add differential tests:
+- same input/witness must match expected edited image and `op_mask`
+- verifier must reject mode/version mismatch
+- negative tests for oversized inputs and policy violations
+4. Promote new mode to default only after benchmark and security sign-off.
+
+## Execution Milestones And Tasks
+
+### Milestone M1: Operational hardening baseline (1-2 weeks)
+
+Deliverables:
+
+1. Add proving mode flag and explicit mode reporting in CLI/API output.
+2. Add max-image-size/max-pixel guardrails for `edit-and-prove*`.
+3. Add default run-metrics persistence for proving/emulation.
+
+Acceptance criteria:
+
+1. Commands fail fast on oversized input with deterministic error messages.
+2. Mode is present in machine-readable output artifacts/logs.
+3. CI captures per-run benchmark artifacts for regression comparison.
+
+Task checklist:
+
+- [ ] Add `--proof-mode` flag in prover CLI (`fast-local`, `high-assurance` placeholder policy labels).
+- [ ] Surface proof mode in JSON/public reporting path (without breaking existing verifier behavior).
+- [ ] Add `--max-input-pixels` with sane default and override.
+- [ ] Persist benchmark rows to `artifacts/perf_history.csv` (append mode).
+- [ ] Add CI job gate for max-cycle thresholds on commit-tier matrix.
+
+### Milestone M2: Versioned artifact schema + verifier gating (1-2 weeks)
+
+Deliverables:
+
+1. Versioned statement/artifact schema.
+2. Verifier rejection on unsupported or mismatched mode/version.
+
+Acceptance criteria:
+
+1. Old artifacts still verify under compatibility mode.
+2. New artifacts include explicit `statement_version` and `proof_mode`.
+3. Negative tests prove mismatch rejection.
+
+Task checklist:
+
+- [ ] Add `statement_version` and `proof_mode` fields to public artifact JSON.
+- [ ] Update `verify` and `verify-c2pa-proof` to enforce compatibility rules.
+- [ ] Add golden fixtures for at least two schema versions.
+- [ ] Add negative fixtures for mode/version mismatch.
+
+### Milestone M3: Performance-path prototype (2-4 weeks)
+
+Deliverables:
+
+1. Optional performance-oriented proving path with explicit trust boundary.
+2. Bench report comparing current full-source path vs new path.
+
+Acceptance criteria:
+
+1. New mode is opt-in only.
+2. Benchmarks show material resource reduction on >=1024x1024 inputs.
+3. Security note clearly states statement difference from full-source mode.
+
+Task checklist:
+
+- [ ] Implement alternate witness/commit flow for bounded working set mode.
+- [ ] Keep `op_mask` semantics unchanged.
+- [ ] Preserve existing full-source path unchanged as reference.
+- [ ] Add side-by-side perf matrix output (`full_source` vs `bounded_mode`).
+- [ ] Add verifier policy check that disallows bounded mode where full assurance is required.
+
+### Milestone M4: Security and production readiness review (1-2 weeks)
+
+Deliverables:
+
+1. Threat model document.
+2. Key-management and trust-policy integration plan.
+3. Final go/no-go checklist for production pilot.
+
+Acceptance criteria:
+
+1. Threat model covers spoofing, tampering, downgrade, and DoS cases.
+2. Key custody plan is HSM/KMS based and rotation-tested.
+3. Trust anchor/revocation policy is explicitly documented and test-covered.
+
+Task checklist:
+
+- [ ] Add `docs/threat-model.md`.
+- [ ] Add `docs/trust-policy.md`.
+- [ ] Add `docs/key-management.md`.
+- [ ] Add security regression tests for downgrade and policy-bypass attempts.
+- [ ] Add release checklist section to README for pilot readiness.
+
 ## Prepare scaling inputs from DSC image
 
 ```bash
